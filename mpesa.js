@@ -1,12 +1,14 @@
 import axios from "axios";
 
+const BASE_URL = "https://api.safaricom.co.ke";
+
 export const generateToken = async () => {
   const consumerKey = process.env.DARAJA_CONSUMER_KEY;
   const consumerSecret = process.env.DARAJA_CONSUMER_SECRET;
   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
 
   const { data } = await axios.get(
-    "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+    `${BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
     { headers: { Authorization: `Basic ${auth}` } }
   );
 
@@ -36,11 +38,33 @@ export const stkPush = async ({ phone, amount }) => {
     PhoneNumber: phone,
     CallBackURL: process.env.CALLBACK_URL,
     AccountReference: "Test123",
-    TransactionDesc: "Testing STK push"
+    TransactionDesc: "Testing STK push",
   };
 
   const { data } = await axios.post(
-    "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+    `${BASE_URL}/mpesa/stkpush/v1/processrequest`,
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  return data;
+};
+
+/* --------------------------------------
+   NEW: Register C2B URLs to receive callbacks
+-------------------------------------- */
+export const registerC2BUrls = async () => {
+  const token = await generateToken();
+
+  const payload = {
+    ShortCode: process.env.DARAJA_SHORTCODE,
+    ResponseType: "Completed",
+    ConfirmationURL: process.env.C2B_CONFIRMATION_URL,
+    ValidationURL: process.env.C2B_VALIDATION_URL,
+  };
+
+  const { data } = await axios.post(
+    `${BASE_URL}/mpesa/c2b/v1/registerurl`,
     payload,
     { headers: { Authorization: `Bearer ${token}` } }
   );

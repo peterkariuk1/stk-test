@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import { stkPush } from "./mpesa.js";
+import { registerC2BUrls } from "./mpesa.js";
 
 dotenv.config();
 const app = express();
@@ -29,6 +30,21 @@ app.post("/api/stk-callback", (req, res) => {
 
     // MUST respond with 200 quickly
     res.json({ message: "Callback received successfully" });
+});
+
+
+// ---- 6. Register C2B Payment URLs ----
+app.get("/api/register-c2b", async (req, res) => {
+    try {
+        const response = await registerC2BUrls();
+        res.json({ success: true, response });
+    } catch (error) {
+        console.error("C2B Registration Error:", error.response?.data || error);
+        res.status(500).json({
+            error: "C2B registration failed",
+            details: error.response?.data || error.message,
+        });
+    }
 });
 
 // ---- 3. Healthcheck ----
