@@ -31,7 +31,7 @@ export const stkPush = async ({ phone, amount }) => {
     BusinessShortCode: process.env.DARAJA_SHORTCODE,
     Password: password,
     Timestamp: timestamp,
-    TransactionType: "CustomerPayBillOnline",
+    TransactionType: "CustomerBuyGoodsOnline",
     Amount: amount,
     PartyA: phone,
     PartyB: process.env.DARAJA_SHORTCODE,
