@@ -10,9 +10,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // ---- 1. Trigger STK push ----
 app.post("/api/stk", async (req, res) => {
-    try {
-        const { phone, amount } = req.body;
+    console.log("REQ BODY RECEIVED:", req.body);   // ADD THIS
 
+    const { phone, amount } = req.body;
+
+    console.log("📞 Phone:", phone);
+    console.log("💵 Amount:", amount);
+
+    try {
         const response = await stkPush({ phone, amount });
         res.json({ success: true, response });
     } catch (error) {
@@ -23,6 +28,7 @@ app.post("/api/stk", async (req, res) => {
         });
     }
 });
+
 
 // ---- 2. STK Callback ----
 app.post("/api/stk-callback", (req, res) => {
