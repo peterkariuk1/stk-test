@@ -5,8 +5,8 @@ import { registerC2BUrls } from "./mpesa.js";
 
 dotenv.config();
 const app = express();
-
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ---- 1. Trigger STK push ----
 app.post("/api/stk", async (req, res) => {
