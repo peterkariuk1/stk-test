@@ -57,14 +57,14 @@ export const stkPush = async ({ phone, amount }) => {
     BusinessShortCode: process.env.DARAJA_SHORTCODE,
     Password: password,
     Timestamp: timestamp,
-    TransactionType: "CustomerPaybillOnline",
+    TransactionType: "CustomerPayBillOnline",
     Amount: amount,
     PartyA: phone,
     PartyB: process.env.DARAJA_SHORTCODE,
     PhoneNumber: phone,
     CallBackURL: process.env.CALLBACK_URL,
-    AccountReference: "Garbage Payment",
-    TransactionDesc: "Garbage Monthly Payment",
+    AccountReference: "Jowabu",
+    TransactionDesc: "Garbage Payment",
   };
 
   console.log("📦 FINAL PAYLOAD SENT TO SAFARICOM:");
