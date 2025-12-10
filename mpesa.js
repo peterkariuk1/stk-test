@@ -51,7 +51,7 @@ export const stkPush = async ({ phone, amount }) => {
     TransactionType: "CustomerBuyGoodsOnline",
     Amount: amount,
     PartyA: phone,
-    PartyB: 3581417,
+    PartyB: 510481,
     PhoneNumber: phone,
     CallBackURL: process.env.CALLBACK_URL,
     AccountReference: "Jowabu",
