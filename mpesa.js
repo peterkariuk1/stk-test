@@ -6,9 +6,6 @@ export const generateToken = async () => {
   const consumerKey = process.env.DARAJA_CONSUMER_KEY;
   const consumerSecret = process.env.DARAJA_CONSUMER_SECRET;
 
-  console.log("🔐 Consumer Key:", consumerKey);
-  console.log("🔐 Consumer Secret:", consumerSecret);
-
   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64");
 
   try {
@@ -16,8 +13,6 @@ export const generateToken = async () => {
       `${BASE_URL}/oauth/v1/generate?grant_type=client_credentials`,
       { headers: { Authorization: `Basic ${auth}` } }
     );
-
-    console.log("🔥 Token Generated:", data.access_token);
     return data.access_token;
 
   } catch (error) {
@@ -33,8 +28,6 @@ export const stkPush = async ({ phone, amount }) => {
   console.log("💵 Amount:", amount);
 
   const token = await generateToken();
-  console.log("🟩 Using Token:", token);
-
   // TIMESTAMP
   const timestamp = new Date()
     .toISOString()
@@ -49,23 +42,23 @@ export const stkPush = async ({ phone, amount }) => {
   ).toString("base64");
 
   console.log("🔑 Shortcode:", process.env.DARAJA_SHORTCODE);
-  console.log("🧵 Passkey:", process.env.DARAJA_PASSKEY);
-  console.log("🔐 Generated Password:", password);
 
   // PAYLOAD
   const payload = {
-    BusinessShortCode: process.env.DARAJA_SHORTCODE,
+    BusinessShortCode: 3581417,
     Password: password,
     Timestamp: timestamp,
     TransactionType: "CustomerPayBillOnline",
     Amount: amount,
     PartyA: phone,
-    PartyB: process.env.DARAJA_SHORTCODE,
+    PartyB: 510481,
     PhoneNumber: phone,
     CallBackURL: process.env.CALLBACK_URL,
     AccountReference: "Jowabu",
     TransactionDesc: "Garbage Payment",
   };
+ 
+  
 
   console.log("📦 FINAL PAYLOAD SENT TO SAFARICOM:");
   console.log(JSON.stringify(payload, null, 2));
