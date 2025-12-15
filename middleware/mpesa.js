@@ -137,3 +137,48 @@ export const c2bConfirmation = async (req, res) => {
     ResultDesc: "Confirmation received successfully",
   });
 };
+
+/* --------------------------------------
+   PULL C2B TRANSACTIONS (IPN PROD)
+-------------------------------------- */
+export const pullC2BTransactions = async ({
+  shortcode,
+  fromDate,
+  toDate,
+}) => {
+  const token = await generateToken();
+
+  console.log("🟢 PullTransactions Token:", token);
+
+  const payload = {
+    ShortCode: shortcode, // YOUR TILL / PAYBILL
+    StartDate: fromDate,  // YYYYMMDDHHMMSS
+    EndDate: toDate,      // YYYYMMDDHHMMSS
+  };
+
+  console.log("📦 PULL TRANSACTIONS PAYLOAD:");
+  console.log(JSON.stringify(payload, null, 2));
+
+  try {
+    const { data } = await axios.post(
+      `${BASE_URL}/mpesa/c2b/v2/transactionstatus`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    console.log("✅ PULL TRANSACTIONS RESPONSE:");
+    console.log(JSON.stringify(data, null, 2));
+
+    return data;
+
+  } catch (error) {
+    console.log("❌ PULL TRANSACTIONS ERROR:");
+    console.log(error.response?.data || error.message);
+    throw error;
+  }
+};
