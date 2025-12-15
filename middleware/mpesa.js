@@ -208,3 +208,34 @@ export const registerPull = async () => {
   return data;
 };
 
+export const pullTransactions = async ({ startDate, endDate, offset = "0" }) => {
+  const token = await generateToken();
+
+  const payload = {
+    ShortCode: process.env.DARAJA_SHORTCODE,
+    StartDate: startDate, // e.g. "20251215000000"
+    EndDate: endDate,     // e.g. "20251215210000"
+    OffSetValue: offset,
+  };
+
+  const { data } = await axios.post(
+    `${BASE_URL}/mpesa/transactions/v1/query`,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  return data;
+};
+
+export const pullCallback = async (req, res) => {
+  console.log("🟣 PULL TRANSACTION CALLBACK");
+  console.log(JSON.stringify(req.body, null, 2));
+
+  res.json({ ResultCode: 0, ResultDesc: "Received" });
+};
+

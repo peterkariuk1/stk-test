@@ -2,7 +2,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import { stkPush, registerC2BUrls, c2bValidation, c2bConfirmation, pullC2BTransactions} from "./middleware/mpesa.js";
+import { stkPush, registerC2BUrls, c2bValidation, c2bConfirmation, pullC2BTransactions, pullCallback } from "./middleware/mpesa.js";
 
 import plotRoutes from "./routes/plots.js";
 
@@ -72,7 +72,7 @@ app.post("/api/c2b/pull", async (req, res) => {
         const { fromDate, toDate } = req.body;
 
         const data = await pullC2BTransactions({
-            shortcode: 510615, 
+            shortcode: 510615,
             fromDate,
             toDate,
         });
@@ -86,6 +86,10 @@ app.post("/api/c2b/pull", async (req, res) => {
         });
     }
 });
+
+// index.js
+app.post("/api/pull/callback", pullCallback);
+
 
 // ---- 3. Healthcheck ----
 app.get("/", (req, res) => {
