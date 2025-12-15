@@ -83,24 +83,32 @@ export const stkPush = async ({ phone, amount }) => {
 export const registerC2BUrls = async () => {
   const token = await generateToken();
 
+  console.log("🟢 GENERATED TOKEN:", token);
+
+  if (!token) {
+    throw new Error("No access token generated");
+  }
+
   const payload = {
-    ShortCode: 510615, // ✅ TILL NUMBER
+    ShortCode: 510615,
     ResponseType: "Completed",
     ConfirmationURL: process.env.C2B_CONFIRMATION_URL,
     ValidationURL: process.env.C2B_VALIDATION_URL,
   };
 
-  console.log("📦 C2B REGISTRATION PAYLOAD:");
-  console.log(JSON.stringify(payload, null, 2));
-
   const { data } = await axios.post(
     "https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl",
     payload,
-    { headers: { Authorization: `Bearer ${token}` } }
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
   );
 
   return data;
 };
+
 
 
 /* --------------------------------------

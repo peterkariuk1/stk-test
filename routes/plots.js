@@ -101,7 +101,7 @@ router.post(
             phone: t.phone,
           })),
           feePerTenant,
-          units: parsedTenants.length, 
+          units: parsedTenants.length,
           lumpsumExpected: null,
           mpesaNumber: null,
         };
@@ -123,5 +123,39 @@ router.post(
     }
   }
 );
+
+// GET /getplots
+router.get("/getplots", verifyFirebaseToken, async (req, res) => {
+  try {
+    const snapshot = await db.collection("plots").orderBy("createdAt", "desc").get();
+    const plots = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      totalPaid: undefined,
+      totalUnpaid: undefined,
+    }));
+    res.status(200).json({ success: true, plots });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Failed to fetch plots" });
+  }
+});
+
+router.delete("/:plotId", verifyFirebaseToken, async (req, res) => {
+  try {
+    const plotRef = db.collection("plots").doc(req.params.plotId);
+    const doc = await plotRef.get();
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, message: "Plot not found" });
+    }
+    await plotRef.delete();
+    return res.status(200).json({ success: true, message: "Plot deleted successfully" });
+  } catch (err) {
+    console.error("DELETE PLOT ERROR:", err);
+    return res.status(500).json({ success: false, message: "Failed to delete plot" });
+  }
+});
+
+
 
 export default router;
