@@ -34,14 +34,11 @@ export const stkPush = async ({ phone, amount }) => {
     .replace(/[-:TZ.]/g, "")
     .substring(0, 14);
 
-  console.log("⏱️ Timestamp:", timestamp);
-
   // PASSWORD
   const password = Buffer.from(
     process.env.DARAJA_SHORTCODE + process.env.DARAJA_PASSKEY + timestamp
   ).toString("base64");
 
-  console.log("🔑 Shortcode:", process.env.DARAJA_SHORTCODE);
 
   // PAYLOAD
   const payload = {
@@ -57,11 +54,7 @@ export const stkPush = async ({ phone, amount }) => {
     AccountReference: "Jowabu",
     TransactionDesc: "Garbage Payment",
   };
- 
-  
 
-  console.log("📦 FINAL PAYLOAD SENT TO SAFARICOM:");
-  console.log(JSON.stringify(payload, null, 2));
   console.log("========================================\n");
 
   try {
@@ -89,10 +82,9 @@ export const stkPush = async ({ phone, amount }) => {
 -------------------------------------- */
 export const registerC2BUrls = async () => {
   const token = await generateToken();
-  console.log("🟩 Token for C2B:", token);
 
   const payload = {
-    ShortCode: process.env.DARAJA_SHORTCODE,
+    ShortCode: 510615, // ✅ TILL NUMBER
     ResponseType: "Completed",
     ConfirmationURL: process.env.C2B_CONFIRMATION_URL,
     ValidationURL: process.env.C2B_VALIDATION_URL,
@@ -101,24 +93,15 @@ export const registerC2BUrls = async () => {
   console.log("📦 C2B REGISTRATION PAYLOAD:");
   console.log(JSON.stringify(payload, null, 2));
 
-  try {
-    const { data } = await axios.post(
-      `${BASE_URL}/mpesa/c2b/v1/registerurl`,
-      payload,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+  const { data } = await axios.post(
+    "https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl",
+    payload,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
 
-    console.log("✅ C2B REGISTRATION RESPONSE:");
-    console.log(JSON.stringify(data, null, 2));
-
-    return data;
-
-  } catch (error) {
-    console.log("❌ C2B REGISTRATION ERROR:");
-    console.log(error.response?.data || error.message);
-    throw error;
-  }
+  return data;
 };
+
 
 /* --------------------------------------
    C2B VALIDATION (ALLOW ALL)
@@ -140,18 +123,6 @@ export const c2bValidation = async (req, res) => {
 export const c2bConfirmation = async (req, res) => {
   console.log("🟢 C2B PAYMENT CONFIRMED");
   console.log(JSON.stringify(req.body, null, 2));
-
-  /**
-   * You’ll receive:
-   * TransID
-   * TransAmount
-   * MSISDN
-   * BillRefNumber
-   * TransTime
-   */
-
-  // 🔹 For now: LOG ONLY
-  // 🔹 Later: save to DB, match plot, tenant, etc.
 
   res.json({
     ResultCode: 0,
