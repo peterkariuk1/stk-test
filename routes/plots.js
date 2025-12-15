@@ -85,9 +85,7 @@ router.post(
       // ===============================
       if (plotType === "individual") {
         const parsedTenants =
-          typeof tenants === "string"
-            ? JSON.parse(tenants)
-            : tenants;
+          typeof tenants === "string" ? JSON.parse(tenants) : tenants;
 
         if (!parsedTenants || parsedTenants.length === 0) {
           return res.status(400).json({
@@ -103,11 +101,12 @@ router.post(
             phone: t.phone,
           })),
           feePerTenant,
-          units: null,
+          units: parsedTenants.length, 
           lumpsumExpected: null,
           mpesaNumber: null,
         };
       }
+
 
       await db.collection("plots").add(plotPayload);
 
