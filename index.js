@@ -1,21 +1,32 @@
+
 import express from "express";
 import dotenv from "dotenv";
-import { stkPush } from "./mpesa.js";
-import { registerC2BUrls } from "./mpesa.js";
+import cors from "cors";
+import { stkPush } from "./middleware/mpesa.js";
+import { registerC2BUrls } from "./middleware/mpesa.js";
+import plotRoutes from "./routes/plots.js";
+import c2bRoutes from "./routes/c2b.js";
+
 
 dotenv.config();
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use(cors({
+    origin: "http://localhost:8080", // allow your frontend
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true, // if you need cookies/auth
+}));
+
+app.use("/api/plots", plotRoutes);
+app.use("/api/c2b", c2bRoutes);
+
+
+
 // ---- 1. Trigger STK push ----
 app.post("/api/stk", async (req, res) => {
-    console.log("REQ BODY RECEIVED:", req.body);   // ADD THIS
-
     const { phone, amount } = req.body;
-
-    console.log("📞 Phone:", phone);
-    console.log("💵 Amount:", amount);
 
     try {
         const response = await stkPush({ phone, amount });
@@ -33,7 +44,6 @@ app.post("/api/stk", async (req, res) => {
 // ---- 2. STK Callback ----
 app.post("/api/stk-callback", (req, res) => {
     console.log("STK Callback received:", JSON.stringify(req.body, null, 2));
-
     // MUST respond with 200 quickly
     res.json({ message: "Callback received successfully" });
 });
