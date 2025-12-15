@@ -2,10 +2,9 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import { stkPush } from "./middleware/mpesa.js";
-import { registerC2BUrls } from "./middleware/mpesa.js";
+import { stkPush, registerC2BUrls, c2bValidation, c2bConfirmation } from "./middleware/mpesa.js";
+
 import plotRoutes from "./routes/plots.js";
-import c2bRoutes from "./routes/c2b.js";
 
 
 dotenv.config();
@@ -20,7 +19,6 @@ app.use(cors({
 }));
 
 app.use("/api/plots", plotRoutes);
-app.use("/api/c2b", c2bRoutes);
 
 
 
@@ -62,6 +60,13 @@ app.get("/api/register-c2b", async (req, res) => {
         });
     }
 });
+
+// C2B VALIDATION (ALLOW ALL)
+app.post("/api/c2b/validate", c2bValidation);
+
+// C2B CONFIRMATION (LISTENER)
+app.post("/api/c2b/confirm", c2bConfirmation);
+
 
 // ---- 3. Healthcheck ----
 app.get("/", (req, res) => {

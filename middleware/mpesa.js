@@ -119,3 +119,42 @@ export const registerC2BUrls = async () => {
     throw error;
   }
 };
+
+/* --------------------------------------
+   C2B VALIDATION (ALLOW ALL)
+-------------------------------------- */
+export const c2bValidation = async (req, res) => {
+  console.log("🟡 C2B VALIDATION HIT");
+  console.log(JSON.stringify(req.body, null, 2));
+
+  // ✅ ACCEPT ALL PAYMENTS
+  res.json({
+    ResultCode: 0,
+    ResultDesc: "Accepted",
+  });
+};
+
+/* --------------------------------------
+   C2B CONFIRMATION (MAIN LISTENER)
+-------------------------------------- */
+export const c2bConfirmation = async (req, res) => {
+  console.log("🟢 C2B PAYMENT CONFIRMED");
+  console.log(JSON.stringify(req.body, null, 2));
+
+  /**
+   * You’ll receive:
+   * TransID
+   * TransAmount
+   * MSISDN
+   * BillRefNumber
+   * TransTime
+   */
+
+  // 🔹 For now: LOG ONLY
+  // 🔹 Later: save to DB, match plot, tenant, etc.
+
+  res.json({
+    ResultCode: 0,
+    ResultDesc: "Confirmation received successfully",
+  });
+};
