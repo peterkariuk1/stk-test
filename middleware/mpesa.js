@@ -90,7 +90,7 @@ export const registerC2BUrls = async () => {
   }
 
   const payload = {
-    ShortCode: 3581417,
+    ShortCode: 510615,
     ResponseType: "Completed",
     ConfirmationURL: process.env.C2B_CONFIRMATION_URL,
     ValidationURL: process.env.C2B_VALIDATION_URL,
@@ -182,3 +182,29 @@ export const pullC2BTransactions = async ({
     throw error;
   }
 };
+
+
+export const registerPull = async () => {
+  const token = await generateToken();
+
+  const payload = {
+    ShortCode: 510615, // org shortcode (paybill / till)
+    RequestType: "Pull",
+    NominatedNumber: 254728290280, // 2547XXXXXXXX
+    CallBackURL: "https://stk-test.onrender.com/api/pull/callback",
+  };
+
+  const { data } = await axios.post(
+    `${BASE_URL}/mpesa/transactions/v1/register`,
+    payload,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  return data;
+};
+
