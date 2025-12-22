@@ -2,9 +2,10 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import { stkPush, registerC2BUrls, c2bValidation, c2bConfirmation, pullC2BTransactions, pullCallback } from "./middleware/mpesa.js";
+import { stkPush } from "./middleware/mpesa.js";
 
 import plotRoutes from "./routes/plots.js";
+import c2bRoutes from "./routes/c2b.js";
 
 
 dotenv.config();
@@ -19,6 +20,8 @@ app.use(cors({
 }));
 
 app.use("/api/plots", plotRoutes);
+app.use("/api/c2b", c2bRoutes);
+
 
 
 
@@ -45,50 +48,6 @@ app.post("/api/stk-callback", (req, res) => {
     // MUST respond with 200 quickly
     res.json({ message: "Callback received successfully" });
 });
-
-
-// ---- 6. Register C2B Payment URLs ----
-app.get("/api/register-c2b", async (req, res) => {
-    try {
-        const response = await registerC2BUrls();
-        res.json({ success: true, response });
-    } catch (error) {
-        console.error("C2B Registration Error:", error.response?.data || error);
-        res.status(500).json({
-            error: "C2B registration failed",
-            details: error.response?.data || error.message,
-        });
-    }
-});
-
-// C2B VALIDATION (ALLOW ALL)
-app.post("/api/c2b/validate", c2bValidation);
-
-// C2B CONFIRMATION (LISTENER)
-app.post("/api/c2b/confirm", c2bConfirmation);
-
-app.post("/api/c2b/pull", async (req, res) => {
-    try {
-        const { fromDate, toDate } = req.body;
-
-        const data = await pullC2BTransactions({
-            shortcode: 510615,
-            fromDate,
-            toDate,
-        });
-
-        res.json({ success: true, data });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            error: error.response?.data || error.message,
-        });
-    }
-});
-
-// index.js
-app.post("/api/pull/callback", pullCallback);
 
 
 // ---- 3. Healthcheck ----

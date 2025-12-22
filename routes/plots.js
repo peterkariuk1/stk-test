@@ -157,5 +157,33 @@ router.delete("/:plotId", verifyFirebaseToken, async (req, res) => {
 });
 
 
+router.get("/:plotId", verifyFirebaseToken, async (req, res) => {
+  try {
+    const plotRef = db.collection("plots").doc(req.params.plotId);
+    const doc = await plotRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({
+        success: false,
+        message: "Plot not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      plot: {
+        id: doc.id,
+        ...doc.data(),
+      },
+    });
+  } catch (err) {
+    console.error("GET PLOT ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch plot",
+    });
+  }
+});
+
 
 export default router;

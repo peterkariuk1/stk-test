@@ -77,31 +77,23 @@ export const stkPush = async ({ phone, amount }) => {
 };
 
 
-/* --------------------------------------
-   REGISTER C2B URLS (also with logs)
--------------------------------------- */
 export const registerC2BUrls = async () => {
   const token = await generateToken();
 
-  console.log("🟢 GENERATED TOKEN:", token);
-
-  if (!token) {
-    throw new Error("No access token generated");
-  }
-
   const payload = {
-    ShortCode: 510615,
+    ShortCode: process.env.C2B_SHORTCODE,
     ResponseType: "Completed",
     ConfirmationURL: process.env.C2B_CONFIRMATION_URL,
     ValidationURL: process.env.C2B_VALIDATION_URL,
   };
 
   const { data } = await axios.post(
-    "https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl",
+    `${BASE_URL}/mpesa/c2b/v2/registerurl`,
     payload,
     {
       headers: {
         Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
     }
   );
@@ -110,132 +102,14 @@ export const registerC2BUrls = async () => {
 };
 
 
+import { registerC2BUrls } from "./middleware/mpesa.js";
 
-/* --------------------------------------
-   C2B VALIDATION (ALLOW ALL)
--------------------------------------- */
-export const c2bValidation = async (req, res) => {
-  console.log("🟡 C2B VALIDATION HIT");
-  console.log(JSON.stringify(req.body, null, 2));
-
-  // ✅ ACCEPT ALL PAYMENTS
-  res.json({
-    ResultCode: 0,
-    ResultDesc: "Accepted",
-  });
-};
-
-/* --------------------------------------
-   C2B CONFIRMATION (MAIN LISTENER)
--------------------------------------- */
-export const c2bConfirmation = async (req, res) => {
-  console.log("🟢 C2B PAYMENT CONFIRMED");
-  console.log(JSON.stringify(req.body, null, 2));
-
-  res.json({
-    ResultCode: 0,
-    ResultDesc: "Confirmation received successfully",
-  });
-};
-
-/* --------------------------------------
-   PULL C2B TRANSACTIONS (IPN PROD)
--------------------------------------- */
-export const pullC2BTransactions = async ({
-  shortcode,
-  fromDate,
-  toDate,
-}) => {
-  const token = await generateToken();
-
-  console.log("🟢 PullTransactions Token:", token);
-
-  const payload = {
-    ShortCode: shortcode, // YOUR TILL / PAYBILL
-    StartDate: fromDate,  // YYYYMMDDHHMMSS
-    EndDate: toDate,      // YYYYMMDDHHMMSS
-  };
-
-  console.log("📦 PULL TRANSACTIONS PAYLOAD:");
-  console.log(JSON.stringify(payload, null, 2));
-
+(async () => {
   try {
-    const { data } = await axios.post(
-      `${BASE_URL}/mpesa/c2b/v2/transactionstatus`,
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    console.log("✅ PULL TRANSACTIONS RESPONSE:");
-    console.log(JSON.stringify(data, null, 2));
-
-    return data;
-
-  } catch (error) {
-    console.log("❌ PULL TRANSACTIONS ERROR:");
-    console.log(error.response?.data || error.message);
-    throw error;
+    const res = await registerC2BUrls();
+    console.log("✅ C2B URLs registered:", res);
+  } catch (e) {
+    console.error("❌ C2B URL registration failed:", e.response?.data || e);
   }
-};
-
-
-export const registerPull = async () => {
-  const token = await generateToken();
-
-  const payload = {
-    ShortCode: 510615, // org shortcode (paybill / till)
-    RequestType: "Pull",
-    NominatedNumber: 254728290280, // 2547XXXXXXXX
-    CallBackURL: "https://stk-test.onrender.com/api/pull/callback",
-  };
-
-  const { data } = await axios.post(
-    `${BASE_URL}/mpesa/transactions/v1/register`,
-    payload,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  return data;
-};
-
-export const pullTransactions = async ({ startDate, endDate, offset = "0" }) => {
-  const token = await generateToken();
-
-  const payload = {
-    ShortCode: process.env.DARAJA_SHORTCODE,
-    StartDate: startDate, // e.g. "20251215000000"
-    EndDate: endDate,     // e.g. "20251215210000"
-    OffSetValue: offset,
-  };
-
-  const { data } = await axios.post(
-    `${BASE_URL}/mpesa/transactions/v1/query`,
-    payload,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-
-  return data;
-};
-
-export const pullCallback = async (req, res) => {
-  console.log("🟣 PULL TRANSACTION CALLBACK");
-  console.log(JSON.stringify(req.body, null, 2));
-
-  res.json({ ResultCode: 0, ResultDesc: "Received" });
-};
+})();
 
