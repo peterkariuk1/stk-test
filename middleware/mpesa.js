@@ -102,14 +102,5 @@ export const registerC2BUrls = async () => {
 };
 
 
-import { registerC2BUrls } from "./middleware/mpesa.js";
 
-(async () => {
-  try {
-    const res = await registerC2BUrls();
-    console.log("✅ C2B URLs registered:", res);
-  } catch (e) {
-    console.error("❌ C2B URL registration failed:", e.response?.data || e);
-  }
-})();
 
