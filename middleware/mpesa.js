@@ -81,7 +81,7 @@ export const registerC2BUrls = async () => {
   const token = await generateToken();
 
   const payload = {
-    ShortCode: process.env.C2B_SHORTCODE,
+    ShortCode: 510615,
     ResponseType: "Completed",
     ConfirmationURL: process.env.C2B_CONFIRMATION_URL,
     ValidationURL: process.env.C2B_VALIDATION_URL,
