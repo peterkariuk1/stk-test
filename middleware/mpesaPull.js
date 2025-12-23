@@ -48,7 +48,7 @@ export const queryPullTransactions = async ({
     const token = await generateToken();
 
     const payload = {
-        ShortCode: 510615,
+        ShortCode: 3581417,
         StartDate: startDate,
         EndDate: endDate,
         OffSetValue: offset.toString(),
