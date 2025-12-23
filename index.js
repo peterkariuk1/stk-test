@@ -6,6 +6,7 @@ import { stkPush } from "./middleware/mpesa.js";
 
 import plotRoutes from "./routes/plots.js";
 import c2bRoutes from "./routes/c2b.js";
+import pullRoutes from "./routes/pull.js";
 
 
 dotenv.config();
@@ -48,6 +49,10 @@ app.post("/api/stk-callback", (req, res) => {
     // MUST respond with 200 quickly
     res.json({ message: "Callback received successfully" });
 });
+
+
+app.use("/api/pull", pullRoutes);
+
 
 
 // ---- 3. Healthcheck ----
