@@ -10,7 +10,7 @@ export const registerPullShortcode = async () => {
     const token = await generateToken();
 
     const payload = {
-        ShortCode: 3581417,
+        ShortCode: 510481,
         RequestType: "Pull",
         NominatedNumber: 254728290280,
         CallBackURL: "https://stk-test.onrender.com/api/pull-callback",
@@ -48,7 +48,7 @@ export const queryPullTransactions = async ({
     const token = await generateToken();
 
     const payload = {
-        ShortCode: 3581417,
+        ShortCode: 510481,
         StartDate: startDate,
         EndDate: endDate,
         OffSetValue: offset.toString(),

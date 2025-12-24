@@ -185,5 +185,101 @@ router.get("/:plotId", verifyFirebaseToken, async (req, res) => {
   }
 });
 
+router.put(
+  "/:plotId",
+  verifyFirebaseToken,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const plotRef = db.collection("plots").doc(req.params.plotId);
+      const existingDoc = await plotRef.get();
+
+      if (!existingDoc.exists) {
+        return res.status(404).json({
+          success: false,
+          message: "Plot not found",
+        });
+      }
+
+      const {
+        name,
+        location,
+        caretakerName,
+        caretakerPhone,
+        units,
+        lumpsumExpected,
+        mpesaNumber,
+        feePerTenant,
+        tenants,
+      } = req.body;
+
+      const existingPlot = existingDoc.data();
+
+      let updatePayload = {
+        name,
+        location,
+        caretakerName,
+        caretakerPhone,
+        updatedAt: new Date(),
+      };
+
+      // ===============================
+      // 🔹 LUMPSUM
+      // ===============================
+      if (existingPlot.plotType === "lumpsum") {
+        if (!units || !lumpsumExpected) {
+          return res.status(400).json({
+            success: false,
+            message: "Units and lumpsum expected are required",
+          });
+        }
+
+        updatePayload = {
+          ...updatePayload,
+          units: Number(units),
+          lumpsumExpected: Number(lumpsumExpected),
+          mpesaNumber,
+        };
+      }
+
+      // ===============================
+      // 🔹 INDIVIDUAL
+      // ===============================
+      if (existingPlot.plotType === "individual") {
+        const parsedTenants =
+          typeof tenants === "string" ? JSON.parse(tenants) : tenants;
+
+        if (!parsedTenants || parsedTenants.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "At least one tenant is required",
+          });
+        }
+
+        updatePayload = {
+          ...updatePayload,
+          tenants: parsedTenants,
+          feePerTenant,
+          units: parsedTenants.length,
+        };
+      }
+
+      await plotRef.update(updatePayload);
+
+      return res.status(200).json({
+        success: true,
+        message: "Plot updated successfully",
+      });
+    } catch (error) {
+      console.error("UPDATE PLOT ERROR:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to update plot",
+      });
+    }
+  }
+);
+
+
 
 export default router;

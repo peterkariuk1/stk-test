@@ -7,6 +7,9 @@ import { stkPush } from "./middleware/mpesa.js";
 import plotRoutes from "./routes/plots.js";
 import c2bRoutes from "./routes/c2b.js";
 import pullRoutes from "./routes/pull.js";
+import { registerC2BUrls } from "./middleware/mpesa.js";
+
+
 
 
 dotenv.config();
@@ -53,7 +56,14 @@ app.post("/api/stk-callback", (req, res) => {
 
 app.use("/api/pull", pullRoutes);
 
-
+(async () => {
+  try {
+    const res = await registerC2BUrls();
+    console.log("✅ C2B URLs registered:", res);
+  } catch (e) {
+    console.error("❌ C2B URL registration failed:", e.response?.data || e);
+  }
+})();
 
 // ---- 3. Healthcheck ----
 app.get("/", (req, res) => {
