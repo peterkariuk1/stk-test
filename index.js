@@ -18,7 +18,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(cors({
-    origin: "http://localhost:8080", // allow your frontend
+    origin: ["http://localhost:8080", "https://jobawu.vercel.app"], // allow your frontend
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true, // if you need cookies/auth
 }));
@@ -56,14 +56,14 @@ app.post("/api/stk-callback", (req, res) => {
 
 app.use("/api/pull", pullRoutes);
 
-(async () => {
-  try {
-    const res = await registerC2BUrls();
-    console.log("✅ C2B URLs registered:", res);
-  } catch (e) {
-    console.error("❌ C2B URL registration failed:", e.response?.data || e);
-  }
-})();
+// (async () => {
+//   try {
+//     const res = await registerC2BUrls();
+//     console.log("✅ C2B URLs registered:", res);
+//   } catch (e) {
+//     console.error("❌ C2B URL registration failed:", e.response?.data || e);
+//   }
+// })();
 
 // ---- 3. Healthcheck ----
 app.get("/", (req, res) => {
