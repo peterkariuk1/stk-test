@@ -3,7 +3,7 @@ import { db } from "../db/firebase.js";
 
 const router = express.Router();
 
-router.post("/confirmation", async (req, res) => {
+router.post("/confirm", async (req, res) => {
     try {
         const payload = req.body;
 
@@ -31,7 +31,7 @@ router.post("/confirmation", async (req, res) => {
         const existing = await txRef.get();
 
         if (existing.exists) {
-            console.log("⚠️ Duplicate callback:", TransID);
+            console.log(" Duplicate callback:", TransID);
             return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
         }
 
@@ -52,21 +52,21 @@ router.post("/confirmation", async (req, res) => {
             createdAt: new Date(),
         });
 
-        console.log("✅ Saved C2B tx:", TransID);
+        console.log(" Saved C2B tx:", TransID);
 
         return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
     } catch (error) {
-        console.error("❌ C2B ERROR:", error);
+        console.error(" C2B ERROR:", error);
         return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 });
 
-router.post("/confirm", async (req, res) => {
-    console.log("C2B CONFIRMATION ENDPOINT HIT");
-    console.log(JSON.stringify(req.body, null, 2));
+// router.post("/confirm", async (req, res) => {
+//     console.log("C2B CONFIRMATION ENDPOINT HIT");
+//     console.log(JSON.stringify(req.body, null, 2));
 
-    res.json({ ResultCode: 0, ResultDesc: "Accepted" });
-});
+//     res.json({ ResultCode: 0, ResultDesc: "Accepted" });
+// });
 
 // ---- OPTIONAL: Validation ----
 router.post("/validate", async (req, res) => {
