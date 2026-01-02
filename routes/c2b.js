@@ -64,7 +64,7 @@ const router = express.Router();
 //     }
 // });
 
-router.post("/confirmation", async (req, res) => {
+router.post("/confirm", async (req, res) => {
     console.log("🔥🔥🔥 C2B CONFIRMATION ENDPOINT HIT 🔥🔥🔥");
     console.log(JSON.stringify(req.body, null, 2));
 
@@ -72,7 +72,7 @@ router.post("/confirmation", async (req, res) => {
 });
 
 // ---- OPTIONAL: Validation ----
-router.post("/validation", async (req, res) => {
+router.post("/validate", async (req, res) => {
     console.log("🔎 C2B VALIDATION:", JSON.stringify(req.body, null, 2));
 
     return res.json({
