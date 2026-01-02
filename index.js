@@ -57,13 +57,16 @@ app.post("/api/stk-callback", (req, res) => {
 app.use("/api/pull", pullRoutes);
 
 (async () => {
-  try {
-    const res = await registerC2BUrls();
-    console.log("✅ C2B URLs registered:", res);
-  } catch (e) {
-    console.error("❌ C2B URL registration failed:", e.response?.data || e);
-  }
+    console.error("Running server, Hello:");
 })();
+// })();(async () => {
+//   try {
+//     const res = await registerC2BUrls();
+//     console.log("✅ C2B URLs registered:", res);
+//   } catch (e) {
+//     console.error("Error: C2B URL registration failed:", e.response?.data || e);
+//   }
+// })();
 
 // ---- 3. Healthcheck ----
 app.get("/", (req, res) => {
