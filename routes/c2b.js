@@ -36,20 +36,9 @@ router.post("/confirm", async (req, res) => {
         }
 
         await txRef.set({
-            transId: TransID,
-            amount: Number(TransAmount),
-            shortCode: BusinessShortCode,
-            billRefNumber: BillRefNumber || null,
-            phone: MSISDN,
-            transactionType: TransactionType,
-            customerName: [FirstName, MiddleName, LastName].filter(Boolean).join(" "),
-            transTime: TransTime,
-            orgAccountBalance: OrgAccountBalance || null,
-
             source: "C2B",
             status: "completed",
             rawPayload: payload,
-            createdAt: new Date(),
         });
 
         console.log(" Saved C2B tx:", TransID);
