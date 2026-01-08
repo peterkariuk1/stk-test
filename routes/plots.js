@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import { db } from "../db/firebase.js";
 import { verifyFirebaseToken } from "../middleware/auth.js";
+import { hashMsisdn } from "../utils/shahash.js";
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -9,7 +10,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post(
   "/registerplot",
   verifyFirebaseToken,
-  upload.single("image"),
   async (req, res) => {
     try {
       const {
@@ -75,10 +75,12 @@ router.post(
           units: Number(units),
           lumpsumExpected: Number(lumpsumExpected),
           mpesaNumber,
+          MSISDN: hashMsisdn(mpesaNumber),
           tenants: [],
           feePerTenant: null,
         };
       }
+
 
       // ===============================
       // 🔹 INDIVIDUAL
@@ -99,12 +101,14 @@ router.post(
           tenants: parsedTenants.map((t) => ({
             name: t.name,
             phone: t.phone,
+            MSISDN: hashMsisdn(t.phone),
           })),
           feePerTenant,
           units: parsedTenants.length,
           lumpsumExpected: null,
           mpesaNumber: null,
         };
+
       }
 
 
@@ -239,6 +243,7 @@ router.put(
           units: Number(units),
           lumpsumExpected: Number(lumpsumExpected),
           mpesaNumber,
+          MSISDN: mpesaNumber ? hashMsisdn(mpesaNumber) : null,
         };
       }
 
@@ -258,7 +263,10 @@ router.put(
 
         updatePayload = {
           ...updatePayload,
-          tenants: parsedTenants,
+          tenants: parsedTenants.map((t) => ({
+            ...t,
+            MSISDN: hashMsisdn(t.phone), // ✅ ADDED
+          })),
           feePerTenant,
           units: parsedTenants.length,
         };

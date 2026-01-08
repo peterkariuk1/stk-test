@@ -11,16 +11,6 @@ router.post("/confirm", async (req, res) => {
 
         const {
             TransID,
-            TransAmount,
-            BusinessShortCode,
-            BillRefNumber,
-            MSISDN,
-            TransTime,
-            TransactionType,
-            FirstName,
-            MiddleName,
-            LastName,
-            OrgAccountBalance,
         } = payload;
 
         if (!TransID) {
