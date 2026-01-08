@@ -1,17 +1,14 @@
 import express from "express";
 import { db } from "../db/firebase.js";
+import { reconcileC2BPayment } from "../middleware/payments.js";
 
 const router = express.Router();
+
 
 router.post("/confirm", async (req, res) => {
     try {
         const payload = req.body;
-
-        console.log("C2B CONFIRMATION:", JSON.stringify(payload, null, 2));
-
-        const {
-            TransID,
-        } = payload;
+        const { TransID, TransAmount, MSISDN } = payload;
 
         if (!TransID) {
             return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
@@ -21,31 +18,30 @@ router.post("/confirm", async (req, res) => {
         const existing = await txRef.get();
 
         if (existing.exists) {
-            console.log(" Duplicate callback:", TransID);
             return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
         }
 
-        await txRef.set({
+        const c2bData = {
+            transId: TransID,
+            amount: Number(TransAmount),
+            phone: MSISDN,
+            rawPayload: payload,
             source: "C2B",
             status: "completed",
-            rawPayload: payload,
-        });
+            createdAt: new Date(),
+        };
 
-        console.log(" Saved C2B tx:", TransID);
+        await txRef.set(c2bData);
+
+        await reconcileC2BPayment(c2bData);
 
         return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
     } catch (error) {
-        console.error(" C2B ERROR:", error);
+        console.error("C2B ERROR:", error);
         return res.json({ ResultCode: 0, ResultDesc: "Accepted" });
     }
 });
 
-// router.post("/confirm", async (req, res) => {
-//     console.log("C2B CONFIRMATION ENDPOINT HIT");
-//     console.log(JSON.stringify(req.body, null, 2));
-
-//     res.json({ ResultCode: 0, ResultDesc: "Accepted" });
-// });
 
 // ---- OPTIONAL: Validation ----
 router.post("/validate", async (req, res) => {
