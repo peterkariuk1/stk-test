@@ -112,7 +112,6 @@ router.put("/:transID", verifyFirebaseToken, async (req, res) => {
         if (phone) updatePayload.phone = phone;
         if (name) updatePayload.name = name;
 
-        // ❌ Explicitly block dangerous edits
         const forbiddenFields = [
             "amount",
             "monthPaid",
