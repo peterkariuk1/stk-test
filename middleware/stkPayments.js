@@ -6,10 +6,9 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 const nextMonth = (monthStr) => {
     const [m, y] = monthStr.split("-");
-    let idx = MONTHS.indexOf(m);
+    let idx = MONTHS.indexOf(m) + 1;
     let year = Number(y);
 
-    idx++;
     if (idx === 12) {
         idx = 0;
         year++;
@@ -29,14 +28,15 @@ export const reconcileSTKPayment = async (stkDoc) => {
         transTime
     } = stkDoc;
 
-    // ✅ Only successful STK callbacks
+    /* ---------------- ACCEPT ONLY SUCCESS ---------------- */
     if (status !== "completed" || resultCode !== 0) return;
 
-    // 🔁 Idempotency
-    const existing = await db.collection("payments").doc(checkoutRequestId).get();
-    if (existing.exists) return;
+    /* ---------------- IDEMPOTENCY ---------------- */
+    const paymentRef = db.collection("payments").doc(checkoutRequestId);
+    const exists = await paymentRef.get();
+    if (exists.exists) return;
 
-    // 📱 Extract & hash MSISDN
+    /* ---------------- EXTRACT + HASH MSISDN ---------------- */
     const phoneItem =
         rawPayload?.Body?.stkCallback?.CallbackMetadata?.Item?.find(
             (i) => i.Name === "PhoneNumber"
@@ -56,13 +56,13 @@ export const reconcileSTKPayment = async (stkDoc) => {
     let expectedAmount = null;
     let isRecognized = false;
 
-    // 🔍 Resolve plot + expected amount
+    /* ---------------- RESOLVE PLOT ---------------- */
     const plotsSnap = await db.collection("plots").get();
 
     plotsSnap.forEach((doc) => {
         const plot = doc.data();
 
-        // ===== LUMPSUM =====
+        // LUMPSUM
         if (plot.plotType === "lumpsum" && plot.MSISDN === hashedMSISDN) {
             isRecognized = true;
             expectedAmount = Number(plot.lumpsumExpected);
@@ -72,7 +72,7 @@ export const reconcileSTKPayment = async (stkDoc) => {
             resolvedPhone = plot.mpesaNumber ?? hashedMSISDN;
         }
 
-        // ===== INDIVIDUAL =====
+        // INDIVIDUAL
         if (plot.plotType === "individual") {
             plot.tenants?.forEach((t) => {
                 if (t.MSISDN === hashedMSISDN) {
@@ -89,9 +89,9 @@ export const reconcileSTKPayment = async (stkDoc) => {
 
     const paymentMonth = formatTime(transTime, "MMM-YYYY");
 
-    // ❌ Unrecognized payment
+    /* ---------------- UNRECOGNIZED ---------------- */
     if (!isRecognized || expectedAmount == null) {
-        await db.collection("payments").doc(checkoutRequestId).set({
+        await paymentRef.set({
             transID: checkoutRequestId,
             plotName: "Unknown",
             units: null,
@@ -112,27 +112,33 @@ export const reconcileSTKPayment = async (stkDoc) => {
         return;
     }
 
-    // 🔎 Fetch last unresolved LESS (same phone)
-    const prevSnap = await db.collection("payments")
-        .where("phone", "==", resolvedPhone)
-        .orderBy("createdAt", "desc")
-        .limit(1)
-        .get();
-
+    /* ---------------- PREVIOUS LESS (SAFE) ---------------- */
     let carriedLess = null;
-    if (!prevSnap.empty) {
-        const prev = prevSnap.docs[0].data();
-        if (prev.less && prev.less.amount > 0) {
-            carriedLess = prev.less;
+
+    try {
+        const prevSnap = await db.collection("payments")
+            .where("phone", "==", resolvedPhone)
+            .orderBy("createdAt", "desc")
+            .limit(1)
+            .get();
+
+        if (!prevSnap.empty) {
+            const prev = prevSnap.docs[0].data();
+            if (prev.less?.amount > 0) {
+                carriedLess = prev.less;
+            }
         }
+    } catch (err) {
+        console.warn("LESS lookup skipped (index missing)");
     }
 
+    /* ---------------- ALLOCATION ---------------- */
     let remaining = totalAmount;
     let monthPaid = [];
     let statusArr = [];
     let less = null;
 
-    // 🧹 1. Clear previous LESS first
+    // 1️⃣ Clear carried LESS
     if (carriedLess) {
         const due = carriedLess.amount;
 
@@ -142,16 +148,13 @@ export const reconcileSTKPayment = async (stkDoc) => {
             remaining -= due;
         } else {
             monthPaid.push({ month: carriedLess.dueMonth, amount: remaining });
-            less = {
-                amount: due - remaining,
-                dueMonth: carriedLess.dueMonth
-            };
+            less = { amount: due - remaining, dueMonth: carriedLess.dueMonth };
             statusArr.push({ month: carriedLess.dueMonth, state: "incomplete" });
             remaining = 0;
         }
     }
 
-    // 🧮 2. Allocate remaining to current & future months
+    // 2️⃣ Allocate months
     let monthCursor = paymentMonth;
 
     while (remaining > 0) {
@@ -162,17 +165,14 @@ export const reconcileSTKPayment = async (stkDoc) => {
             monthCursor = nextMonth(monthCursor);
         } else {
             monthPaid.push({ month: monthCursor, amount: remaining });
-            less = {
-                amount: expectedAmount - remaining,
-                dueMonth: monthCursor
-            };
+            less = { amount: expectedAmount - remaining, dueMonth: monthCursor };
             statusArr.push({ month: monthCursor, state: "incomplete" });
             remaining = 0;
         }
     }
 
-    // 🧾 Persist payment
-    await db.collection("payments").doc(checkoutRequestId).set({
+    /* ---------------- FINAL WRITE ---------------- */
+    await paymentRef.set({
         transID: checkoutRequestId,
         plotName,
         units,
