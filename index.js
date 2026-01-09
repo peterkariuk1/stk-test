@@ -7,7 +7,8 @@ import { stkPush } from "./middleware/mpesa.js";
 import plotRoutes from "./routes/plots.js";
 import c2bRoutes from "./routes/c2b.js";
 import pullRoutes from "./routes/pull.js";
-import stkRoutes from "./routes/stk.js"
+import stkRoutes from "./routes/stk.js";
+import paymentsRoutes from "./routes/allPayments.js";
 import { registerC2BUrls } from "./middleware/mpesa.js";
 
 
@@ -27,6 +28,7 @@ app.use(cors({
 app.use("/api/plots", plotRoutes);
 app.use("/api/c2b", c2bRoutes);
 app.use("/api/stk-callback", stkRoutes);
+app.use("/api/payments", paymentsRoutes);
 
 
 

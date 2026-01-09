@@ -1,6 +1,6 @@
 import { db } from "../db/firebase.js";
 import { formatTime, currentMonth } from "../utils/time.js";
-import { hashMsisdn } from "../utils/shahash.js"; // same hasher used everywhere
+import { hashMsisdn } from "../utils/shahash.js"; 
 
 export const reconcileSTKPayment = async (stkDoc) => {
     const {
