@@ -9,11 +9,11 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     if (existingPayment.exists) return;
 
     let matched = null;
-    let expectedAmount: number | null = null;
+    let expectedAmount = null;
     let resolvedPhone = hashedMSISDN;
     let resolvedName = "Unknown";
     let plotName = "Unknown";
-    let units: number | null = null;
+    let units = null;
     let status = "pending";
     let overpayment = 0;
     let balance = 0;
