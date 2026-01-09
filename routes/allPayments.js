@@ -96,7 +96,7 @@ router.put("/:transId", verifyFirebaseToken, async (req, res) => {
 
         const { amount: newAmount, phone, name, plotName } = req.body;
 
-        const updatePayload: any = {};
+        const updatePayload = {};
 
         // 🔹 Only editable fields
         if (phone) updatePayload.phone = phone;

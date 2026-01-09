@@ -68,11 +68,10 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     ? amount - expectedAmount
     : amount;
 
-  // 🧾 Create payment record
   await db.collection("payments").doc(transId).set({
     id: transId,
-    plotName,              // ✅
-    units,                 // ✅
+    plotName,              
+    units,                 
     amount: {
       cash: null,
       mpesa: amount,
