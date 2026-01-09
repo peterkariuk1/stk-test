@@ -24,7 +24,7 @@ router.post(
         tenants,
       } = req.body;
 
-      // 🔒 Base validation
+      //  Base validation
       if (!name || !location || !plotType) {
         return res.status(400).json({
           success: false,
@@ -32,7 +32,7 @@ router.post(
         });
       }
 
-      // 🔍 Prevent duplicate plot names
+      //  Prevent duplicate plot names
       const existing = await db
         .collection("plots")
         .where("name", "==", name)
@@ -57,7 +57,7 @@ router.post(
       };
 
       // ===============================
-      // 🔹 LUMPSUM
+      //  LUMPSUM
       // ===============================
       if (plotType === "lumpsum") {
         if (!units || !lumpsumExpected || !mpesaNumber) {
@@ -79,7 +79,7 @@ router.post(
       }
 
       // ===============================
-      // 🔹 INDIVIDUAL (UPDATED)
+      //  INDIVIDUAL (UPDATED)
       // ===============================
       if (plotType === "individual") {
         const parsedTenants =
@@ -209,14 +209,16 @@ router.put(
   async (req, res) => {
     try {
       const plotRef = db.collection("plots").doc(req.params.plotId);
-      const existingDoc = await plotRef.get();
+      const snapshot = await plotRef.get();
 
-      if (!existingDoc.exists) {
+      if (!snapshot.exists) {
         return res.status(404).json({
           success: false,
           message: "Plot not found",
         });
       }
+
+      const existingPlot = snapshot.data();
 
       const {
         name,
@@ -230,19 +232,20 @@ router.put(
         tenants,
       } = req.body;
 
-      const existingPlot = existingDoc.data();
-
-      let updatePayload = {
-        name,
-        location,
-        caretakerName,
-        caretakerPhone,
+      /** -----------------------------
+       * BASE UPDATE (shared fields)
+       * ----------------------------- */
+      const updatePayload = {
+        ...(name && { name }),
+        ...(location && { location }),
+        ...(caretakerName && { caretakerName }),
+        ...(caretakerPhone && { caretakerPhone }),
         updatedAt: new Date(),
       };
 
-      // ===============================
-      // 🔹 LUMPSUM
-      // ===============================
+      /** -----------------------------
+       * LUMPSUM LOGIC
+       * ----------------------------- */
       if (existingPlot.plotType === "lumpsum") {
         if (!units || !lumpsumExpected) {
           return res.status(400).json({
@@ -251,38 +254,38 @@ router.put(
           });
         }
 
-        updatePayload = {
-          ...updatePayload,
+        Object.assign(updatePayload, {
           units: Number(units),
           lumpsumExpected: Number(lumpsumExpected),
-          mpesaNumber,
-          MSISDN: mpesaNumber ? hashMsisdn(mpesaNumber) : null,
-        };
+          ...(mpesaNumber && {
+            mpesaNumber,
+            MSISDN: hashMsisdn(mpesaNumber),
+          }),
+        });
       }
 
-      // ===============================
-      // 🔹 INDIVIDUAL
-      // ===============================
+      /** -----------------------------
+       * INDIVIDUAL LOGIC
+       * ----------------------------- */
       if (existingPlot.plotType === "individual") {
         const parsedTenants =
           typeof tenants === "string" ? JSON.parse(tenants) : tenants;
 
-        if (!parsedTenants || parsedTenants.length === 0) {
+        if (!Array.isArray(parsedTenants) || parsedTenants.length === 0) {
           return res.status(400).json({
             success: false,
             message: "At least one tenant is required",
           });
         }
 
-        updatePayload = {
-          ...updatePayload,
+        Object.assign(updatePayload, {
           tenants: parsedTenants.map((t) => ({
             ...t,
-            MSISDN: hashMsisdn(t.phone), // ✅ ADDED
+            MSISDN: hashMsisdn(t.phone),
           })),
-          feePerTenant,
           units: parsedTenants.length,
-        };
+          ...(feePerTenant && { feePerTenant }),
+        });
       }
 
       await plotRef.update(updatePayload);
@@ -300,6 +303,7 @@ router.put(
     }
   }
 );
+
 
 
 
