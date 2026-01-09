@@ -21,7 +21,6 @@ router.post(
         units,
         lumpsumExpected,
         mpesaNumber,
-        feePerTenant,
         tenants,
       } = req.body;
 
@@ -47,7 +46,6 @@ router.post(
         });
       }
 
-      // 🧠 Plot-type–specific logic
       let plotPayload = {
         name,
         location,
@@ -77,13 +75,11 @@ router.post(
           mpesaNumber,
           MSISDN: hashMsisdn(mpesaNumber),
           tenants: [],
-          feePerTenant: null,
         };
       }
 
-
       // ===============================
-      // 🔹 INDIVIDUAL
+      // 🔹 INDIVIDUAL (UPDATED)
       // ===============================
       if (plotType === "individual") {
         const parsedTenants =
@@ -96,21 +92,37 @@ router.post(
           });
         }
 
+        const allowedAmounts = ["100", "150", "200", "250"];
+
+        for (const t of parsedTenants) {
+          if (!t.name || !t.phone || !t.amount) {
+            return res.status(400).json({
+              success: false,
+              message: "Each tenant must have name, phone and amount",
+            });
+          }
+
+          if (!allowedAmounts.includes(String(t.amount))) {
+            return res.status(400).json({
+              success: false,
+              message: `Invalid tenant amount: ${t.amount}`,
+            });
+          }
+        }
+
         plotPayload = {
           ...plotPayload,
+          units: parsedTenants.length,
           tenants: parsedTenants.map((t) => ({
             name: t.name,
             phone: t.phone,
             MSISDN: hashMsisdn(t.phone),
+            amount: Number(t.amount), // ✅ STORED PER TENANT
           })),
-          feePerTenant,
-          units: parsedTenants.length,
           lumpsumExpected: null,
           mpesaNumber: null,
         };
-
       }
-
 
       await db.collection("plots").add(plotPayload);
 
@@ -127,6 +139,7 @@ router.post(
     }
   }
 );
+
 
 // GET /getplots
 router.get("/getplots", verifyFirebaseToken, async (req, res) => {
