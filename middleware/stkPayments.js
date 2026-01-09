@@ -20,11 +20,11 @@ export const reconcileSTKPayment = async (stkDoc) => {
   const hashedMSISDN = hashMsisdn(String(phoneItem.Value));
 
   let matched = null;
-  let expectedAmount: number | null = null;
+  let expectedAmount = null;
   let resolvedPhone = hashedMSISDN;
   let resolvedName = "Unknown";
   let plotName = "Unknown";
-  let units: number | null = null;
+  let units = null;
   let statusResolved = "pending";
   let overpayment = 0;
   let balance = 0;
