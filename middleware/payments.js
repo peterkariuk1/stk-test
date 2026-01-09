@@ -2,19 +2,10 @@ import { db } from "../db/firebase.js";
 import { formatTime, currentMonth } from "../utils/time.js";
 
 export const reconcileC2BPayment = async (c2bDoc) => {
-  const {
-    amount,
-    phone: hashedMSISDN,
-    transId,
-    rawPayload,
-  } = c2bDoc;
+  const { amount, phone: hashedMSISDN, transId, rawPayload } = c2bDoc;
 
   // 🔁 Idempotency
-  const existingPayment = await db
-    .collection("payments")
-    .doc(transId)
-    .get();
-
+  const existingPayment = await db.collection("payments").doc(transId).get();
   if (existingPayment.exists) return;
 
   let matched = null;
@@ -22,7 +13,7 @@ export const reconcileC2BPayment = async (c2bDoc) => {
   let resolvedPhone = hashedMSISDN;
   let resolvedName = "Unknown";
   let plotName = "Unknown";
-  let units = null;               // ✅ NEW
+  let units = null;
   let status = "pending";
 
   const plotsSnap = await db.collection("plots").get();
@@ -31,16 +22,13 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     const plot = doc.data();
 
     // ================= LUMPSUM =================
-    if (
-      plot.plotType === "lumpsum" &&
-      plot.MSISDN === hashedMSISDN
-    ) {
+    if (plot.plotType === "lumpsum" && plot.MSISDN === hashedMSISDN) {
       matched = plot;
       expectedAmount = Number(plot.lumpsumExpected);
       resolvedPhone = plot.mpesaNumber;
       resolvedName = plot.name;
       plotName = plot.name;
-      units = Number(plot.units || 1); // ✅ FULL PLOT UNITS
+      units = Number(plot.units || 1);
     }
 
     // ================= INDIVIDUAL =================
@@ -52,26 +40,30 @@ export const reconcileC2BPayment = async (c2bDoc) => {
           resolvedPhone = t.phone;
           resolvedName = t.name;
           plotName = plot.name;
-          units = 1;                // ✅ PER TENANT
+          units = 1;
         }
       });
     }
   });
 
-  // 🧮 Status resolution
+  // 🧮 Status resolution and overpayment
+  let overpayment = 0;
   if (matched) {
-    status =
-      amount === expectedAmount ? "completed" : "incomplete";
+    if (amount >= expectedAmount) {
+      status = "completed"; // ✅ mark as completed even if overpaid
+      overpayment = amount - expectedAmount;
+    } else {
+      status = "incomplete"; // underpaid
+    }
   }
 
-  const balance = matched
-    ? amount - expectedAmount
-    : amount;
+  const balance = matched ? expectedAmount - amount : amount;
 
+  // 🧾 Save payment
   await db.collection("payments").doc(transId).set({
     id: transId,
-    plotName,              
-    units,                 
+    plotName,
+    units,
     amount: {
       cash: null,
       mpesa: amount,
@@ -83,6 +75,7 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     source: "C2B",
     status,
     balance,
+    overpayment, // ✅ new field
     createdAt: new Date(),
   });
 };
