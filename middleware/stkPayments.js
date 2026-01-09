@@ -3,14 +3,7 @@ import { formatTime, currentMonth } from "../utils/time.js";
 import { hashMsisdn } from "../utils/shahash.js"; 
 
 export const reconcileSTKPayment = async (stkDoc) => {
-  const {
-    checkoutRequestId,
-    amount,
-    rawPayload,
-    status,
-    resultCode,
-    transTime,
-  } = stkDoc;
+  const { checkoutRequestId, amount, rawPayload, status, resultCode, transTime } = stkDoc;
 
   // ✅ Only completed & successful transactions
   if (status !== "completed" || resultCode !== 0) return;
@@ -27,13 +20,14 @@ export const reconcileSTKPayment = async (stkDoc) => {
   const hashedMSISDN = hashMsisdn(String(phoneItem.Value));
 
   let matched = null;
-  let expectedAmount = null;
+  let expectedAmount: number | null = null;
   let resolvedPhone = hashedMSISDN;
   let resolvedName = "Unknown";
   let plotName = "Unknown";
-  let units = null;
+  let units: number | null = null;
   let statusResolved = "pending";
   let overpayment = 0;
+  let balance = 0;
 
   // 🔍 Fetch plots
   const plotsSnap = await db.collection("plots").get();
@@ -45,7 +39,7 @@ export const reconcileSTKPayment = async (stkDoc) => {
     if (plot.plotType === "lumpsum" && plot.MSISDN === hashedMSISDN) {
       matched = plot;
       expectedAmount = Number(plot.lumpsumExpected);
-      resolvedPhone = plot.mpesaNumber;
+      resolvedPhone = plot.mpesaNumber ?? hashedMSISDN;
       resolvedName = plot.name;
       plotName = plot.name;
       units = Number(plot.units || 1);
@@ -57,7 +51,7 @@ export const reconcileSTKPayment = async (stkDoc) => {
         if (t.MSISDN === hashedMSISDN) {
           matched = plot;
           expectedAmount = Number(plot.feePerTenant);
-          resolvedPhone = t.phone;
+          resolvedPhone = t.phone ?? hashedMSISDN;
           resolvedName = t.name;
           plotName = plot.name;
           units = 1;
@@ -67,16 +61,21 @@ export const reconcileSTKPayment = async (stkDoc) => {
   });
 
   // 🧮 Status & overpayment resolution
-  if (matched) {
+  if (matched && expectedAmount != null) {
     if (amount >= expectedAmount) {
-      statusResolved = "completed"; // ✅ completed even if overpaid
+      statusResolved = "completed";        // ✅ completed even if overpaid
       overpayment = amount - expectedAmount;
+      balance = 0;
     } else {
       statusResolved = "incomplete";
+      overpayment = 0;
+      balance = expectedAmount - amount;
     }
+  } else {
+    // No matching plot → leave as pending, balance equals amount
+    balance = amount;
+    overpayment = 0;
   }
-
-  const balance = matched ? expectedAmount - amount : amount;
 
   // 🧾 Save to payments collection
   await db.collection("payments").doc(checkoutRequestId).set({
@@ -94,7 +93,7 @@ export const reconcileSTKPayment = async (stkDoc) => {
     source: "STK",
     status: statusResolved,
     balance,
-    overpayment, // ✅ new field
+    overpayment,
     createdAt: new Date(),
   });
 };
