@@ -1,162 +1,174 @@
 import express from "express";
 import { db } from "../db/firebase.js";
 import { verifyFirebaseToken } from "../middleware/auth.js";
-import { formatTime, currentMonth } from "../utils/time.js";
 
 const router = express.Router();
 
-// ---------------- GET ALL PAYMENTS ----------------
+/* ===========================
+   GET ALL PAYMENTS
+=========================== */
 router.get("/", verifyFirebaseToken, async (req, res) => {
     try {
-        const snapshot = await db.collection("payments").orderBy("createdAt", "desc").get();
-        const payments = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        return res.status(200).json({ success: true, payments });
-    } catch (error) {
-        console.error("GET PAYMENTS ERROR:", error);
-        return res.status(500).json({ success: false, message: "Failed to fetch payments" });
+        const snapshot = await db
+            .collection("payments")
+            .orderBy("createdAt", "desc")
+            .get();
+
+        const payments = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        res.status(200).json({ success: true, payments });
+    } catch (err) {
+        console.error("GET PAYMENTS ERROR:", err);
+        res.status(500).json({ success: false, message: "Failed to fetch payments" });
     }
 });
 
-// ---------------- GET SINGLE PAYMENT ----------------
-router.get("/:transId", verifyFirebaseToken, async (req, res) => {
+/* ===========================
+   GET SINGLE PAYMENT
+=========================== */
+router.get("/:transID", verifyFirebaseToken, async (req, res) => {
     try {
-        const paymentRef = db.collection("payments").doc(req.params.transId);
-        const doc = await paymentRef.get();
+        const doc = await db.collection("payments").doc(req.params.transID).get();
+
         if (!doc.exists) {
             return res.status(404).json({ success: false, message: "Payment not found" });
         }
-        return res.status(200).json({ success: true, payment: doc.data() });
-    } catch (error) {
-        console.error("GET PAYMENT ERROR:", error);
-        return res.status(500).json({ success: false, message: "Failed to fetch payment" });
+
+        res.status(200).json({ success: true, payment: doc.data() });
+    } catch (err) {
+        console.error("GET PAYMENT ERROR:", err);
+        res.status(500).json({ success: false, message: "Failed to fetch payment" });
     }
 });
 
-// ---------------- CREATE PAYMENT ----------------
+/* ===========================
+   CREATE MANUAL PAYMENT
+   (cash / mpesa reconciliation)
+=========================== */
 router.post("/", verifyFirebaseToken, async (req, res) => {
     try {
-        const data = req.body;
-        const { id: transId, plotName, units, amount, phone, name, time, month, source, status, balance } = data;
-
-        // Validate required fields
-        if (!transId || !amount?.mpesa || !phone || !name || !source) {
-            return res.status(400).json({ success: false, message: "Missing required fields" });
-        }
-
-        // Check if plot exists for plotName
-        if (plotName) {
-            const plotSnap = await db.collection("plots").where("name", "==", plotName).limit(1).get();
-            if (plotSnap.empty) {
-                return res.status(400).json({ success: false, message: `Plot ${plotName} does not exist` });
-            }
-        }
-
-        const paymentRef = db.collection("payments").doc(transId);
-        const existing = await paymentRef.get();
-        if (existing.exists) {
-            return res.status(409).json({ success: false, message: "Payment with this transId already exists" });
-        }
-
-        await paymentRef.set({
-            id: transId,
-            plotName: plotName || null,
-            units: units || null,
-            amount: {
-                cash: amount?.cash || null,
-                mpesa: amount.mpesa,
-            },
+        const {
+            transID,
+            amount,
             phone,
             name,
-            time: time || formatTime(new Date()),
-            month: month || currentMonth(),
-            source,
-            status: status || "pending",
-            balance: balance ?? amount.mpesa,
-            createdAt: new Date(),
+            source
+        } = req.body;
+
+        if (!transID || !amount?.total || !phone || !name || !source) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields"
+            });
+        }
+
+        // ❗ Do NOT allow direct writes if ID exists
+        const existing = await db.collection("payments").doc(transID).get();
+        if (existing.exists) {
+            return res.status(409).json({
+                success: false,
+                message: "Payment with this transID already exists"
+            });
+        }
+
+        /**
+         * Manual payments MUST go through the same
+         * reconciliation engine as STK / C2B
+         * 
+         * This route should enqueue or call the
+         * same reconciliation logic internally.
+         */
+        return res.status(400).json({
+            success: false,
+            message: "Manual payment creation must use reconciliation engine"
         });
 
-        return res.status(201).json({ success: true, message: "Payment created successfully" });
-    } catch (error) {
-        console.error("CREATE PAYMENT ERROR:", error);
-        return res.status(500).json({ success: false, message: "Failed to create payment" });
+    } catch (err) {
+        console.error("CREATE PAYMENT ERROR:", err);
+        res.status(500).json({ success: false, message: "Failed to create payment" });
     }
 });
 
-// ---------------- EDIT PAYMENT ----------------
-router.put("/:transId", verifyFirebaseToken, async (req, res) => {
+/* ===========================
+   EDIT PAYMENT (SAFE FIELDS)
+=========================== */
+router.put("/:transID", verifyFirebaseToken, async (req, res) => {
     try {
-        const paymentRef = db.collection("payments").doc(req.params.transId);
-        const doc = await paymentRef.get();
+        const ref = db.collection("payments").doc(req.params.transID);
+        const doc = await ref.get();
 
         if (!doc.exists) {
             return res.status(404).json({ success: false, message: "Payment not found" });
         }
 
-        const existingPayment = doc.data();
-
-        const { amount: newAmount, phone, name, plotName } = req.body;
+        const { phone, name } = req.body;
 
         const updatePayload = {};
 
-        // 🔹 Only editable fields
+        // ✅ Only identity corrections allowed
         if (phone) updatePayload.phone = phone;
         if (name) updatePayload.name = name;
 
-        // 🔹 Cash addition
-        if (newAmount?.cash != null) {
-            const totalPaid = (existingPayment.amount.mpesa || 0) + newAmount.cash;
-            const totalExpected = existingPayment.units && existingPayment.plotName
-                ? (() => {
-                    // fetch plot info to calculate total expected
-                    return db.collection("plots").where("name", "==", existingPayment.plotName).get()
-                        .then(snap => {
-                            if (snap.empty) return null;
-                            const plot = snap.docs[0].data();
-                            if (plot.plotType === "lumpsum") return Number(plot.lumpsumExpected);
-                            if (plot.plotType === "individual") return Number(plot.feePerTenant) * plot.tenants.length;
-                            return null;
-                        });
-                })()
-                : null;
+        // ❌ Explicitly block dangerous edits
+        const forbiddenFields = [
+            "amount",
+            "monthPaid",
+            "less",
+            "status",
+            "plotName",
+            "units",
+            "source"
+        ];
 
-            const expected = await totalExpected;
-
-            if (expected != null && totalPaid > expected) {
-                return res.status(400).json({ success: false, message: "Cash + MPESA cannot exceed expected total" });
+        forbiddenFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                throw new Error(`Editing '${field}' is not allowed`);
             }
+        });
 
-            updatePayload["amount.cash"] = newAmount.cash;
-            updatePayload.balance = expected != null ? expected - totalPaid : existingPayment.balance - newAmount.cash;
-        }
+        await ref.update(updatePayload);
 
-        // 🔹 PlotName edits are not allowed
-        if (plotName && plotName !== existingPayment.plotName) {
-            return res.status(400).json({ success: false, message: "Plot name cannot be edited" });
-        }
+        res.status(200).json({
+            success: true,
+            message: "Payment updated successfully"
+        });
 
-        await paymentRef.update(updatePayload);
-
-        return res.status(200).json({ success: true, message: "Payment updated successfully" });
-    } catch (error) {
-        console.error("EDIT PAYMENT ERROR:", error);
-        return res.status(500).json({ success: false, message: "Failed to update payment" });
+    } catch (err) {
+        console.error("EDIT PAYMENT ERROR:", err.message);
+        res.status(400).json({
+            success: false,
+            message: err.message
+        });
     }
 });
 
-// ---------------- DELETE PAYMENT ----------------
-router.delete("/:transId", verifyFirebaseToken, async (req, res) => {
+/* ===========================
+   DELETE PAYMENT
+=========================== */
+router.delete("/:transID", verifyFirebaseToken, async (req, res) => {
     try {
-        const paymentRef = db.collection("payments").doc(req.params.transId);
-        const doc = await paymentRef.get();
+        const ref = db.collection("payments").doc(req.params.transID);
+        const doc = await ref.get();
+
         if (!doc.exists) {
             return res.status(404).json({ success: false, message: "Payment not found" });
         }
 
-        await paymentRef.delete();
-        return res.status(200).json({ success: true, message: "Payment deleted successfully" });
-    } catch (error) {
-        console.error("DELETE PAYMENT ERROR:", error);
-        return res.status(500).json({ success: false, message: "Failed to delete payment" });
+        await ref.delete();
+
+        res.status(200).json({
+            success: true,
+            message: "Payment deleted successfully"
+        });
+    } catch (err) {
+        console.error("DELETE PAYMENT ERROR:", err);
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete payment"
+        });
     }
 });
 

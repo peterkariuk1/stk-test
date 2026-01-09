@@ -1,89 +1,177 @@
 import { db } from "../db/firebase.js";
-import { formatTime, currentMonth } from "../utils/time.js";
+import { formatTime } from "../utils/time.js";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const nextMonth = (monthStr) => {
+    const [m, y] = monthStr.split("-");
+    let idx = MONTHS.indexOf(m);
+    let year = Number(y);
+
+    idx++;
+    if (idx === 12) {
+        idx = 0;
+        year++;
+    }
+
+    return `${MONTHS[idx]}-${year}`;
+};
 
 export const reconcileC2BPayment = async (c2bDoc) => {
-    const { amount: mpesaAmount, cashAmount = 0, phone: hashedMSISDN, transId, rawPayload } = c2bDoc;
+    const {
+        amount: mpesaAmount,
+        cashAmount = 0,
+        phone: hashedMSISDN,
+        transId,
+        rawPayload
+    } = c2bDoc;
 
     // 🔁 Idempotency
-    const existingPayment = await db.collection("payments").doc(transId).get();
-    if (existingPayment.exists) return;
+    const existing = await db.collection("payments").doc(transId).get();
+    if (existing.exists) return;
 
-    let matched = null;
-    let expectedAmount = null;
-    let resolvedPhone = hashedMSISDN;
-    let resolvedName = "Unknown";
+    const totalAmount =
+        (Number(mpesaAmount) || 0) + (Number(cashAmount) || 0);
+
     let plotName = "Unknown";
     let units = null;
-    let status = "pending";
-    let overpayment = 0;
-    let balance = 0;
+    let resolvedName = "Unknown";
+    let resolvedPhone = hashedMSISDN;
+    let expectedAmount = null;
+    let isRecognized = false;
 
-    const totalAmount = (Number(mpesaAmount) || 0) + (Number(cashAmount) || 0);
-
+    // 🔍 Resolve plot + expected
     const plotsSnap = await db.collection("plots").get();
 
     plotsSnap.forEach((doc) => {
         const plot = doc.data();
 
-        // ================= LUMPSUM =================
+        // ===== LUMPSUM =====
         if (plot.plotType === "lumpsum" && plot.MSISDN === hashedMSISDN) {
-            matched = plot;
+            isRecognized = true;
             expectedAmount = Number(plot.lumpsumExpected);
-            resolvedPhone = plot.mpesaNumber ?? hashedMSISDN;
-            resolvedName = plot.name;
             plotName = plot.name;
             units = Number(plot.units || 1);
+            resolvedName = plot.name;
+            resolvedPhone = plot.mpesaNumber ?? hashedMSISDN;
         }
 
-        // ================= INDIVIDUAL =================
+        // ===== INDIVIDUAL =====
         if (plot.plotType === "individual") {
             plot.tenants?.forEach((t) => {
                 if (t.MSISDN === hashedMSISDN) {
-                    matched = plot;
-                    expectedAmount = Number(plot.feePerTenant);
-                    resolvedPhone = t.phone ?? hashedMSISDN;
-                    resolvedName = t.name;
+                    isRecognized = true;
+                    expectedAmount = Number(t.amount);
                     plotName = plot.name;
-                    units = 1;
+                    units = Number(plot.units);
+                    resolvedName = t.name;
+                    resolvedPhone = t.phone ?? hashedMSISDN;
                 }
             });
         }
     });
 
-    // 🧮 Status & overpayment resolution
-    if (matched && expectedAmount != null) {
-        if (totalAmount >= expectedAmount) {
-            status = "completed";       // ✅ mark as completed even if overpaid
-            overpayment = totalAmount - expectedAmount;
-            balance = 0;
-        } else {
-            status = "incomplete";      // underpaid
-            overpayment = 0;
-            balance = expectedAmount - totalAmount;
-        }
-    } else {
-        // No plot match → leave as pending, balance equals total amount
-        balance = totalAmount;
-        overpayment = 0;
+    // ❌ Unrecognized payment
+    if (!isRecognized || expectedAmount == null) {
+        await db.collection("payments").doc(transId).set({
+            transID: transId,
+            plotName: "Unknown",
+            units: null,
+            amount: {
+                mpesa: mpesaAmount || null,
+                cash: cashAmount || null,
+                total: totalAmount
+            },
+            phone: resolvedPhone,
+            name: "Unknown",
+            time: formatTime(rawPayload.TransTime),
+            source: "C2B",
+            monthPaid: [],
+            less: null,
+            status: [{ state: "unrecognized" }],
+            createdAt: new Date()
+        });
+        return;
     }
 
-    // 🧾 Save payment
+    // 🔎 Fetch last unresolved LESS (if any)
+    const prevSnap = await db.collection("payments")
+        .where("phone", "==", resolvedPhone)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get();
+
+    let carriedLess = null;
+    if (!prevSnap.empty) {
+        const prev = prevSnap.docs[0].data();
+        if (prev.less && prev.less.amount > 0) {
+            carriedLess = prev.less;
+        }
+    }
+
+    let remaining = totalAmount;
+    let monthPaid = [];
+    let status = [];
+    let less = null;
+
+    let currentMonth = formatTime(rawPayload.TransTime, "MMM-YYYY");
+
+    // 🧹 1. Clear previous LESS first
+    if (carriedLess) {
+        const due = carriedLess.amount;
+
+        if (remaining >= due) {
+            monthPaid.push({ month: carriedLess.dueMonth, amount: due });
+            status.push({ month: carriedLess.dueMonth, state: "complete" });
+            remaining -= due;
+        } else {
+            monthPaid.push({ month: carriedLess.dueMonth, amount: remaining });
+            less = {
+                amount: due - remaining,
+                dueMonth: carriedLess.dueMonth
+            };
+            status.push({ month: carriedLess.dueMonth, state: "incomplete" });
+            remaining = 0;
+        }
+    }
+
+    // 🧮 2. Allocate remaining to months
+    let monthCursor = currentMonth;
+
+    while (remaining > 0) {
+        if (remaining >= expectedAmount) {
+            monthPaid.push({ month: monthCursor, amount: expectedAmount });
+            status.push({ month: monthCursor, state: "complete" });
+            remaining -= expectedAmount;
+            monthCursor = nextMonth(monthCursor);
+        } else {
+            monthPaid.push({ month: monthCursor, amount: remaining });
+            less = {
+                amount: expectedAmount - remaining,
+                dueMonth: monthCursor
+            };
+            status.push({ month: monthCursor, state: "incomplete" });
+            remaining = 0;
+        }
+    }
+
+    // 🧾 Persist
     await db.collection("payments").doc(transId).set({
-        id: transId,
+        transID: transId,
         plotName,
         units,
         amount: {
-            cash: cashAmount || null,
             mpesa: mpesaAmount || null,
+            cash: cashAmount || null,
+            total: totalAmount
         },
         phone: resolvedPhone,
         name: resolvedName,
         time: formatTime(rawPayload.TransTime),
-        month: currentMonth(),
         source: "C2B",
+        monthPaid,
+        less,
         status,
-        balance,
-        overpayment,
-        createdAt: new Date(),
+        createdAt: new Date()
     });
 };
