@@ -1,19 +1,28 @@
 import { db } from "../db/firebase.js";
 import { formatTime } from "../utils/time.js";
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS = [
+  "Jan","Feb","Mar","Apr","May","Jun",
+  "Jul","Aug","Sep","Oct","Nov","Dec"
+];
 
 const nextMonth = (monthStr) => {
+  if (!monthStr || typeof monthStr !== "string") return monthStr;
+
   const [m, y] = monthStr.split("-");
-  let idx = MONTHS.indexOf(m) + 1;
+  const idx = MONTHS.indexOf(m);
+
+  if (idx === -1 || !y || isNaN(Number(y))) return monthStr;
+
+  let nextIdx = idx + 1;
   let year = Number(y);
 
-  if (idx === 12) {
-    idx = 0;
+  if (nextIdx === 12) {
+    nextIdx = 0;
     year++;
   }
 
-  return `${MONTHS[idx]}-${year}`;
+  return `${MONTHS[nextIdx]}-${year}`;
 };
 
 export const reconcileC2BPayment = async (c2bDoc) => {
@@ -25,10 +34,10 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     rawPayload
   } = c2bDoc;
 
-  /* ---------------- IDENTITY / IDEMPOTENCY ---------------- */
+  /* ---------------- IDEMPOTENCY ---------------- */
   const paymentRef = db.collection("payments").doc(transId);
   const exists = await paymentRef.get();
-  if (exists.exists) return; // 🔁 hard stop
+  if (exists.exists) return;
 
   const totalAmount =
     (Number(mpesaAmount) || 0) + (Number(cashAmount) || 0);
@@ -39,6 +48,12 @@ export const reconcileC2BPayment = async (c2bDoc) => {
   let resolvedPhone = hashedMSISDN;
   let expectedAmount = null;
   let isRecognized = false;
+
+  /* ---------------- PAYMENT MONTH ---------------- */
+  const paymentMonth = formatTime(
+    rawPayload?.TransTime,
+    "MMM-YYYY"
+  );
 
   /* ---------------- RESOLVE PLOT ---------------- */
   const plotsSnap = await db.collection("plots").get();
@@ -63,7 +78,7 @@ export const reconcileC2BPayment = async (c2bDoc) => {
           isRecognized = true;
           expectedAmount = Number(t.amount);
           plotName = plot.name;
-          units = Number(plot.units);
+          units = Number(plot.units || 1);
           resolvedName = t.name;
           resolvedPhone = t.phone ?? hashedMSISDN;
         }
@@ -72,7 +87,7 @@ export const reconcileC2BPayment = async (c2bDoc) => {
   });
 
   /* ---------------- UNRECOGNIZED ---------------- */
-  if (!isRecognized || expectedAmount == null) {
+  if (!isRecognized || !expectedAmount) {
     await paymentRef.set({
       transID: transId,
       plotName: "Unknown",
@@ -94,7 +109,7 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     return;
   }
 
-  /* ---------------- PREVIOUS LESS (SAFE) ---------------- */
+  /* ---------------- PREVIOUS LESS ---------------- */
   let carriedLess = null;
 
   try {
@@ -106,51 +121,45 @@ export const reconcileC2BPayment = async (c2bDoc) => {
 
     if (!prevSnap.empty) {
       const prev = prevSnap.docs[0].data();
-      if (prev.less?.amount > 0) {
-        carriedLess = prev.less;
-      }
+      if (prev.less?.amount > 0) carriedLess = prev.less;
     }
-  } catch (err) {
-    console.warn("LESS lookup skipped (index missing)");
-  }
+  } catch (_) {}
 
-  /* ---------------- ALLOCATION ---------------- */
+  /* ---------------- ALLOCATION (ADDITION ONLY) ---------------- */
   let remaining = totalAmount;
   let monthPaid = [];
-  let status = [];
+  let statusArr = [];
   let less = null;
 
-  let currentMonth = formatTime(rawPayload.TransTime, "MMM-YYYY");
-
-  // 1️⃣ Clear carried LESS
+  // 1️⃣ Clear carried LESS first
   if (carriedLess) {
     const due = carriedLess.amount;
 
     if (remaining >= due) {
       monthPaid.push({ month: carriedLess.dueMonth, amount: due });
-      status.push({ month: carriedLess.dueMonth, state: "complete" });
+      statusArr.push({ month: carriedLess.dueMonth, state: "complete" });
       remaining -= due;
     } else {
       monthPaid.push({ month: carriedLess.dueMonth, amount: remaining });
       less = { amount: due - remaining, dueMonth: carriedLess.dueMonth };
-      status.push({ month: carriedLess.dueMonth, state: "incomplete" });
+      statusArr.push({ month: carriedLess.dueMonth, state: "incomplete" });
       remaining = 0;
     }
   }
 
-  // 2️⃣ Allocate months
-  let monthCursor = currentMonth;
+  // 2️⃣ Allocate current & future months
+  let monthCursor = paymentMonth;
 
   while (remaining > 0) {
     if (remaining >= expectedAmount) {
       monthPaid.push({ month: monthCursor, amount: expectedAmount });
-      status.push({ month: monthCursor, state: "complete" });
+      statusArr.push({ month: monthCursor, state: "complete" });
       remaining -= expectedAmount;
       monthCursor = nextMonth(monthCursor);
     } else {
       monthPaid.push({ month: monthCursor, amount: remaining });
       less = { amount: expectedAmount - remaining, dueMonth: monthCursor };
-      status.push({ month: monthCursor, state: "incomplete" });
+      statusArr.push({ month: monthCursor, state: "incomplete" });
       remaining = 0;
     }
   }
@@ -171,7 +180,7 @@ export const reconcileC2BPayment = async (c2bDoc) => {
     source: "C2B",
     monthPaid,
     less,
-    status,
+    status: statusArr,
     createdAt: new Date()
   });
 };
